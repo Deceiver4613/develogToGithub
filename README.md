@@ -8,7 +8,7 @@
 2. `Settings → Actions → General → Workflow permissions`에서 `Read and write permissions`를 활성화합니다.
 3. 포크한 저장소라면 `Actions`에서 워크플로가 비활성화되어 있지 않은지 확인하고 필요할 때 활성화합니다. `Actions → Sync Develog Posts → Run workflow`로 수동 실행한 뒤 `posts/`를 확인합니다.
 
-**아이디를 입력하지 않으면 안전을 위해 작업이 오류로 종료됩니다.** `config.json`은 공개되어도 되는 사용자 이름만 저장하며, 비밀번호나 토큰을 넣지 마세요. 선택적으로 실행 환경변수 `DEVELOG_HANDLE`로 아이디를 덮어쓸 수도 있습니다. 이미 다른 계정의 `posts.json`이 있는 저장소에서는 계정을 변경하지 마세요. 계정별로 별도의 저장소를 사용해야 합니다.
+아이디를 입력하지 않으면 안전을 위해 작업이 오류로 종료됩니다. `config.json`은 공개되어도 되는 사용자 이름만 저장하며, 비밀번호나 토큰을 넣지 마세요. 선택적으로 실행 환경변수 `DEVELOG_HANDLE`로 아이디를 덮어쓸 수도 있습니다. 이미 다른 계정의 `posts.json`이 있는 저장소에서는 계정을 변경하지 마세요. 계정별로 별도의 저장소를 사용해야 합니다.
 
 ## 동작 방식
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Conservative HTML-to-Markdown backup of public Develog articles.
+"""디벨로그 공개 게시글을 HTML에서 Markdown으로 변환하여 백업합니다.
 
-No unofficial/private API, login cookies, or bypassing access controls.
-Fails closed if page content cannot be identified reliably.
+비공식·비공개 API나 로그인 쿠키를 사용하지 않으며 접근 제한을 우회하지 않습니다.
+본문을 확실하게 식별할 수 없으면 잘못 저장하지 않고 실행을 중단합니다.
 """
 import hashlib
 import json
@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup
 from markdownify import markdownify as html_to_md
 
 BASE = 'https://develog.develrocket.com'
-HANDLE = None  # Loaded from config.json when the sync starts
+HANDLE = None  # 동기화 시작 시 config.json에서 불러옴
 ROOT = Path(__file__).resolve().parents[1]
 POSTS = ROOT / 'posts'
 ARCHIVE = ROOT / 'archive'
@@ -31,7 +31,7 @@ TIMEOUT = 20
 
 
 def load_handle():
-    # An explicit account is required; never silently sync the template author's posts.
+    # 사용자 계정을 반드시 지정해야 하며 기본 계정으로 임의 동기화하지 않음
     config_path = ROOT / 'config.json'
     config = json.loads(config_path.read_text(encoding='utf8')) if config_path.exists() else {}
     if not isinstance(config, dict):
@@ -52,7 +52,7 @@ def get_html(url):
 
 
 def article_urls(profile_html):
-    """Only public same-origin links under /@handle/<slug>."""
+    """해당 계정의 공개 게시글 링크만 수집합니다."""
     soup = BeautifulSoup(profile_html, 'html.parser')
     results = set()
     for a in soup.select('a[href]'):
@@ -79,7 +79,7 @@ def get_title(soup):
 
 
 def summarize_page_structure(soup):
-    """Short, privacy-conscious debug info: tag names/classes only, not content."""
+    """본문 대신 태그·클래스 정보만 출력해 페이지 구조를 진단합니다."""
     overview = []
     for selector in ['main', 'article', '[role="main"]', 'h1', 'time', 'div[class*="content"]',
                      'div[class*="markdown"]', 'div[class*="viewer"]', 'section']:
@@ -90,7 +90,7 @@ def summarize_page_structure(soup):
 
 
 def get_body(soup):
-    """Find a plausible article body; never export the whole document."""
+    """게시글 본문 영역을 탐색하며 페이지 전체를 저장하지 않습니다."""
     selectors = [
         '[data-testid="post-content"]', '[data-testid="article-content"]',
         '[itemprop="articleBody"]', '[class*="markdown-body"]', '[class*="MarkdownBody"]',
@@ -108,8 +108,8 @@ def get_body(soup):
         node = max(nodes, key=lambda n: len(n.get_text(' ', strip=True)))
         if len(node.get_text(' ', strip=True)) >= 20 or node.find(['img', 'pre']):
             return node
-    # A real semantic article can be accepted only if it has meaningful paragraphs/code,
-    # and does not contain common global navigation or comment forms.
+    # 문단이나 코드가 충분히 있고 전체 메뉴·댓글 입력창이 포함되지 않은 경우에만
+    # article 요소를 본문으로 인정
     for selector in ('article', 'main article', 'main [role="article"]'):
         for node in soup.select(selector):
             if (len(node.get_text(' ', strip=True)) >= 70 and
@@ -119,7 +119,7 @@ def get_body(soup):
     raise ValueError('Recognized article body not found. DOM structure: ' + summarize_page_structure(soup))
 
 def safe_title(text):
-    """Unicode titles are preserved, but path separators are removed."""
+    """한글을 포함한 제목은 유지하고 파일 경로에 사용할 수 없는 문자는 제거합니다."""
     text = unicodedata.normalize('NFC', text).strip()
     text = re.sub(r'[\\/:*?"<>|\x00-\x1f]', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip(' .')
@@ -127,7 +127,7 @@ def safe_title(text):
 
 
 def published_date(soup):
-    """Use a *verified* machine-readable publication date, never sync date."""
+    """실제 게시일을 확인하며 동기화 날짜로 임의 대체하지 않습니다."""
     for selector, attr in [
         ('meta[property="article:published_time"]', 'content'),
         ('meta[name="datePublished"]', 'content'),
@@ -190,17 +190,17 @@ def normalize_image_urls(node, url):
 
 
 def strip_site_chrome(markdown):
-    """Remove only recognizable *trailing* Develog UI, preserving the real post.
+    """게시글 본문은 유지하고 끝부분의 디벨로그 UI만 제거합니다.
 
-    Do not globally remove words like '공유' or '댓글': authors may write them.
-    The footer signature must be found close to the end of the converted body.
+    '공유', '댓글' 같은 단어는 본문에도 나올 수 있으므로 일괄 삭제하지 않습니다.
+    페이지 하단 UI임이 확인되는 경우에만 잘라냅니다.
     """
     lines = markdown.splitlines()
     if not lines:
         return markdown
     nonempty = [(i, line.strip()) for i, line in enumerate(lines) if line.strip()]
-    # Exact author-profile link followed by notification/follow UI is a strong
-    # footer signature; remove all UI from the preceding standalone Share item.
+    # 작성자 프로필 링크 뒤에 알림·팔로우 UI가 이어지면 하단 UI로 판단
+    # 바로 앞에 독립된 '공유' 항목이 있다면 해당 항목부터 제거
     owner_pattern = re.compile(r'^\[[^\]\n]+\]\(https://develog\.develrocket\.com/@[^/)\s]+/?\)$')
     owner_indices = [i for i, line in nonempty if owner_pattern.fullmatch(line)]
     notification = '새 글이 올라오면 Develog 알림으로 알려드려요'
@@ -212,13 +212,13 @@ def strip_site_chrome(markdown):
     cut = None
     if candidates:
         i = candidates[-1]
-        # The author box must be close to the end, not an example in the article.
+        # 본문 속 예시와 혼동하지 않도록 작성자 영역이 글 끝에 있을 때만 제거
         if len([1 for k, _ in nonempty if k > i]) <= 12:
             cut = i
             prev = [(k, v) for k, v in nonempty if k < i]
             if prev and prev[-1][1] in ('공유', 'Share'):
                 cut = prev[-1][0]
-    # Alternate footer: Share plus a comment counter near end of the article.
+    # 다른 형태의 하단 UI도 공유 항목과 댓글 수가 글 끝에 있을 때만 제거
     if cut is None:
         comment_pattern = re.compile(r'^#{1,6}\s*댓글\s*\d+\s*$')
         comments = [i for i, v in nonempty if comment_pattern.fullmatch(v)]
@@ -264,7 +264,7 @@ def main():
     if not isinstance(raw_manifest, dict):
         raise ValueError('posts.json is not a JSON object')
     manifest = normalized_manifest(raw_manifest)
-    # Prevent mixing backups from different accounts in one repository.
+    # 한 저장소에 다른 계정의 백업이 섞이지 않도록 확인
     for saved_url in manifest:
         if unquote(urlparse(saved_url).path).split('/')[1:2] != [f'@{HANDLE}']:
             raise ValueError('posts.json contains another account. Use a fresh repository for a new handle.')
@@ -283,7 +283,7 @@ def main():
             source, title, date = article_markdown(url, get_html(url))
             if url in updated:
                 entry = updated[url]
-                filename = entry['file']  # established title/date never change
+                filename = entry['file']  # 최초 저장한 제목·날짜 기반 파일명은 유지
             else:
                 filename = choose_filename(title, date, url, occupied)
                 entry = {'file': filename}
@@ -304,7 +304,7 @@ def main():
             failures.append(f'{url}: {exc}')
         time.sleep(0.5)
 
-    # A partially failed scrape cannot be treated as an authoritative deletion snapshot.
+    # 게시글 수집이 일부라도 실패하면 삭제 여부를 판단하지 않음
     if not failures:
         for url, entry in updated.items():
             if url in urls or entry.get('status') != 'active':

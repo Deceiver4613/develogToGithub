@@ -1,0 +1,35 @@
+name: Sync Develog Posts
+on:
+  schedule:
+    # Every day at 23:50 KST (14:50 UTC); scheduled runs can be delayed.
+    - cron: '50 14 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: develog-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Sync published posts
+        run: python scripts/sync_develog.py
+      - name: Commit changes
+        run: |
+          if [[ -n "$(git status --porcelain -- posts archive posts.json)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A -- posts archive posts.json
+            git commit -m "Sync Develog posts"
+            git push
+          else
+            echo "No changes"
+          fi
